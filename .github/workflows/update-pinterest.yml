@@ -3,10 +3,50 @@ name: Update Pinterest Archive
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  test:
+  crawl:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Test
-        run: echo "Pinterest workflow is working"
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "stable"
+
+      - name: Install Pinterest CLI
+        run: |
+          go install github.com/tamnd/pinterest-cli/cmd/pin@latest
+
+      - name: Crawl Pinterest board
+        run: |
+          mkdir -p data
+          pin board pins "https://www.pinterest.com/Shamsowl/think-about-it/" \
+            -o jsonl > data/pinterest-raw.jsonl
+
+      - name: Check results
+        run: |
+          echo "Number of collected pins:"
+          wc -l data/pinterest-raw.jsonl
+          echo ""
+          echo "First results:"
+          head -n 3 data/pinterest-raw.jsonl
+
+      - name: Save results
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add data/pinterest-raw.jsonl
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Update Pinterest archive"
+            git push
+          fi
